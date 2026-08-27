@@ -1,6 +1,4 @@
 # راه‌اندازی n8n روی ویندوز با Docker Desktop / WSL2
-version: "3.8"
-
 services:
   n8n:
     image: n8nio/n8n:latest
@@ -18,18 +16,20 @@ services:
       # پوشه اشتراکی برای import کردن فایل Workflow از داخل کانتینر
       - ./workflow:/home/node/workflow
 
-  # تونل عمومی رایگان Cloudflare.
+  # (اختیاری — فقط برای نسخه Webhook) تونل عمومی رایگان Cloudflare.
+  # نیازمند دسترسی به Docker Hub است؛ در صورت مسدود بودن، از نسخه Polling استفاده کنید.
+  # برای فعال‌سازی، خطوط زیر را از حالت کامنت خارج کرده و WEBHOOK_URL را در .env تنظیم کنید.
   # سرورهای تلگرام نمی‌توانند به localhost دسترسی داشته باشند، بنابراین برای ثبت Webhook
   # به یک آدرس عمومی HTTPS نیاز داریم. این سرویس یک آدرس *.trycloudflare.com می‌سازد.
   # توجه: این آدرس با هر بار ری‌استارت تغییر می‌کند و باید در WEBHOOK_URL به‌روزرسانی شود.
   # در محیط عملیاتی این سرویس را حذف کرده و دامنه واقعی خود را در WEBHOOK_URL بگذارید.
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: n8n-tunnel
-    restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://n8n:5678
-    depends_on:
-      - n8n
+#  tunnel:
+#    image: cloudflare/cloudflared:latest
+#    container_name: n8n-tunnel
+#    restart: unless-stopped
+#    command: tunnel --no-autoupdate --url http://n8n:5678
+#    depends_on:
+#      - n8n
 
 volumes:
   n8n_data:
