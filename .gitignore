@@ -26,3 +26,6 @@ Thumbs.db
 
 # داده‌های محلی n8n
 n8n_data/
+
+# فایل موقت import
+workflow/_import_tmp.json

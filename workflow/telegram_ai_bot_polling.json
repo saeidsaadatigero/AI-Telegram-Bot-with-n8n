@@ -1,0 +1,255 @@
+{
+  "name": "AI Telegram Bot (Polling)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "b1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Every 5 Seconds",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -460,
+        0
+      ],
+      "notes": "زمان‌بند اجرا (هر ۵ ثانیه).\n\nعملکرد: به جای انتظار برای Webhook، هر ۵ ثانیه Workflow را اجرا می‌کند تا پیام‌های جدید از تلگرام گرفته شوند.\n\nچرا این روش؟ سرورهای تلگرام نمی‌توانند به localhost دسترسی داشته باشند، بنابراین در محیط توسعه محلی روش Long Polling جایگزین Webhook می‌شود.\n\nنکته: بازه را کمتر از ۵ ثانیه نگذارید تا به محدودیت نرخ (Rate Limit) تلگرام نخورید.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// خواندن شناسه آخرین پیام پردازش‌شده از حافظه دائمی Workflow\n// این مقدار بین اجراهای مختلف حفظ می‌شود و از پردازش تکراری پیام‌ها جلوگیری می‌کند\nconst staticData = $getWorkflowStaticData('global');\n\nreturn [{ json: { offset: staticData.telegramOffset || 0 } }];"
+      },
+      "id": "b1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Read Offset",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        0
+      ],
+      "notes": "خواندن نشانگر آخرین پیام.\n\nعملکرد: مقدار telegramOffset را از حافظه دائمی Workflow می‌خواند.\n\nخروجی: { offset: عدد }\n\nنکته مهم: تابع $getWorkflowStaticData فقط در اجرای Production (وقتی Workflow فعال است) داده را ذخیره می‌کند؛ در اجرای دستی مقدار ذخیره نمی‌شود.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/getUpdates?timeout=0&offset={{ $json.offset }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Get Updates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -20,
+        0
+      ],
+      "notes": "دریافت پیام‌های جدید از تلگرام.\n\nعملکرد: متد getUpdates را روی Bot API صدا می‌زند و پیام‌هایی که شناسه آن‌ها از offset بزرگ‌تر است را برمی‌گرداند.\n\nتوکن ربات از متغیر محیطی خوانده می‌شود: {{ $env.TELEGRAM_BOT_TOKEN }} — بنابراین هیچ کلیدی داخل فایل JSON ذخیره نمی‌شود.\n\nنکته: پارامتر timeout=0 یعنی درخواست بلافاصله پاسخ می‌دهد و منتظر پیام جدید نمی‌ماند.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// استخراج پیام‌های متنی و به‌روزرسانی نشانگر\nconst staticData = $getWorkflowStaticData('global');\nconst response = items[0].json;\nconst updates = response.result || [];\nconst output = [];\n\nfor (const update of updates) {\n  // نشانگر همیشه جلو می‌رود، حتی برای آپدیت‌هایی که پیام متنی نیستند\n  staticData.telegramOffset = update.update_id + 1;\n\n  const message = update.message;\n  if (!message || !message.text) continue;\n\n  output.push({\n    json: {\n      chatId: message.chat.id,\n      text: message.text,\n      firstName: message.from.first_name || '',\n    },\n  });\n}\n\n// اگر پیام جدیدی نبود، آرایه خالی برمی‌گردد و اجرای Workflow همین‌جا متوقف می‌شود\nreturn output;"
+      },
+      "id": "b1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Extract Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "استخراج پیام‌ها و ذخیره نشانگر.\n\nعملکرد:\n۱) برای هر آپدیت، مقدار telegramOffset را برابر update_id + 1 قرار می‌دهد تا آن پیام دوباره پردازش نشود.\n۲) فقط پیام‌های متنی را نگه می‌دارد.\n۳) به ازای هر پیام یک آیتم خروجی می‌سازد، بنابراین گره‌های بعدی برای هر پیام یک‌بار اجرا می‌شوند.\n\nخروجی هر آیتم: { chatId, text, firstName }\n\nاگر پیام جدیدی نباشد، آرایه خالی برمی‌گردد و اجرا بدون خطا متوقف می‌شود.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "تو یک دستیار هوشمند فارسی‌زبان هستی. پاسخ‌های کوتاه و مفید بده."
+        }
+      },
+      "id": "b1b2c3d4-0005-4000-8000-000000000005",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        420,
+        0
+      ],
+      "notes": "پردازش پیام با مدل زبانی OpenAI.\n\nورودی: {{ $json.text }} از گره Extract Messages\n\nخروجی: فیلد output شامل پاسخ متنی مدل\n\nپرامپت سیستم: «تو یک دستیار هوشمند فارسی‌زبان هستی. پاسخ‌های کوتاه و مفید بده.»\n\nگزینه onError روی continueErrorOutput است تا در صورت خطای OpenAI، کاربر بدون پاسخ نماند.",
+      "notesInFlow": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 512
+        }
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000006",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        400,
+        220
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai_api",
+          "name": "openai_api"
+        }
+      },
+      "notes": "مدل زبانی OpenAI (زیرگره AI Agent).\n\nمدل: gpt-4o-mini — temperature ۰٫۷ — حداکثر ۵۱۲ توکن.\n\nنیازمند Credential با نام openai_api است.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": {{ $('Extract Messages').item.json.chatId }},\n  \"text\": {{ JSON.stringify($json.output) }}\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        -100
+      ],
+      "notes": "ارسال پاسخ به کاربر.\n\nعملکرد: متد sendMessage تلگرام را با شناسه چت و متن پاسخ صدا می‌زند.\n\nشناسه چت: {{ $('Extract Messages').item.json.chatId }}\nمتن: {{ JSON.stringify($json.output) }} — استفاده از JSON.stringify باعث می‌شود کاراکترهای خاص و خطوط جدید به‌درستی escape شوند.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": {{ $('Extract Messages').item.json.chatId }},\n  \"text\": \"متأسفم، در پردازش پیام شما مشکلی پیش آمد. لطفاً چند لحظه بعد دوباره تلاش کنید.\"\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Notify User On Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        100
+      ],
+      "notes": "اطلاع‌رسانی خطا به کاربر.\n\nعملکرد: اگر گره AI Agent با خطا مواجه شود (اتمام اعتبار OpenAI، Timeout و…)، یک پیام مؤدبانه به کاربر ارسال می‌شود تا بدون پاسخ نماند.\n\nاین گره به خروجی دوم (قرمز) گره AI Agent متصل است.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Every 5 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Read Offset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Offset": {
+      "main": [
+        [
+          {
+            "node": "Get Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Updates": {
+      "main": [
+        [
+          {
+            "node": "Extract Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Messages": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify User On Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Tehran",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "none"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "ai-telegram-bot-sample"
+  }
+}

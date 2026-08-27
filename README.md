@@ -228,6 +228,52 @@ Workflow به دو اعتبارنامه نیاز دارد. **کلیدها هرگ
 
 ---
 
+## دو نسخه از Workflow
+
+پروژه دو پیاده‌سازی از یک ربات دارد؛ تفاوت آن‌ها فقط در **نحوه دریافت پیام** است.
+
+| | `telegram_ai_bot.json` (Webhook) | `telegram_ai_bot_polling.json` (Polling) |
+|---|---|---|
+| گره شروع | `Telegram Trigger` | `Schedule Trigger` (هر ۵ ثانیه) |
+| دریافت پیام | تلگرام Webhook می‌فرستد | n8n متد `getUpdates` را صدا می‌زند |
+| نیاز به آدرس عمومی HTTPS | **بله** | **خیر** |
+| تأخیر پاسخ | تقریباً صفر | حداکثر ۵ ثانیه |
+| مناسب برای | سرور عملیاتی با دامنه | توسعه و تست روی `localhost` |
+
+### چرا نسخه Polling لازم است؟
+
+گره `Telegram Trigger` هنگام فعال شدن، متد `setWebhook` را صدا می‌زند و آدرس n8n را به تلگرام معرفی می‌کند. اگر n8n روی `localhost` اجرا شود، سرورهای تلگرام هیچ راهی برای رسیدن به آن ندارند و در نتیجه **هیچ پیامی دریافت نمی‌شود** — بدون آنکه خطایی نمایش داده شود.
+
+نسخه Polling این محدودیت را دور می‌زند: به جای اینکه تلگرام به n8n وصل شود، **n8n به تلگرام وصل می‌شود** (ارتباط خروجی) و پیام‌های جدید را می‌گیرد.
+
+### مدیریت وضعیت در نسخه Polling
+
+برای اینکه یک پیام دوبار پردازش نشود، شناسه آخرین پیام در حافظه دائمی Workflow ذخیره می‌شود:
+
+```javascript
+const staticData = $getWorkflowStaticData('global');
+staticData.telegramOffset = update.update_id + 1;
+```
+
+> ⚠️ تابع `$getWorkflowStaticData` فقط در **اجرای Production** (زمانی که Workflow فعال است) داده را ذخیره می‌کند. در اجرای دستی (Execute Workflow) مقدار ذخیره نمی‌شود و پیام‌ها تکراری پردازش می‌شوند.
+
+در نسخه Polling، توکن ربات از متغیر محیطی `{{ $env.TELEGRAM_BOT_TOKEN }}` خوانده می‌شود؛ بنابراین برای گره‌های تلگرام نیازی به Credential نیست و فقط `openai_api` لازم است.
+
+### راه‌اندازی نسخه Webhook روی سرور عملیاتی
+
+۱. n8n را روی سروری با دامنه و گواهی HTTPS معتبر مستقر کنید.
+۲. متغیر `WEBHOOK_URL=https://your-domain.com` را در `.env` تنظیم کنید.
+۳. کانتینر را ری‌استارت و Workflow را فعال کنید.
+۴. ثبت شدن Webhook را بررسی کنید:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
+```
+
+اگر مقدار `url` خالی برگردد، Webhook ثبت نشده است.
+
+---
+
 ## نکات امنیتی
 
 - 🔒 **هرگز فایل `.env` را commit نکنید.** این فایل در `.gitignore` قرار دارد؛ فقط `.env.example` باید در مخزن باشد.
@@ -247,7 +293,9 @@ Workflow به دو اعتبارنامه نیاز دارد. **کلیدها هرگ
 | `Invalid API key` / `401 Unauthorized` از OpenAI | کلید اشتباه، منقضی یا دارای فاصله اضافی است | کلید را از پنل OpenAI بازسازی کنید و بدون فاصله در اعتبارنامه `openai_api` بگذارید |
 | `429 insufficient_quota` | اعتبار حساب OpenAI تمام شده است | در بخش Billing حساب OpenAI شارژ کنید |
 | `Telegram bot not found` / `404 Not Found` | توکن ربات اشتباه است | توکن را با `/mybots` در BotFather بررسی و در اعتبارنامه `telegram_bot` جایگزین کنید |
-| ربات پیام‌ها را دریافت نمی‌کند | Workflow غیرفعال است یا Webhook ثبت نشده | کلید **Active** را روشن کنید؛ برای دسترسی از اینترنت از تونل (`ngrok`) و متغیر `WEBHOOK_URL` استفاده کنید |
+| **ربات هیچ پاسخی نمی‌دهد و هیچ خطایی هم دیده نمی‌شود** | Webhook ثبت نشده چون n8n روی `localhost` از اینترنت قابل دسترس نیست | با `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"` بررسی کنید؛ اگر `url` خالی بود، از نسخه `telegram_ai_bot_polling.json` استفاده کنید |
+| `--tunnel` کار نمی‌کند | این گزینه در n8n نسخه ۲ حذف شده است | از نسخه Polling استفاده کنید یا n8n را پشت یک دامنه عمومی با HTTPS مستقر کنید |
+| پیام‌ها در نسخه Polling تکراری پردازش می‌شوند | Workflow فعال نیست و `$getWorkflowStaticData` ذخیره نمی‌کند | Workflow را **Active** کنید تا در حالت Production اجرا شود |
 | `Bad Request: chat not found` در گره Alert Admin | مقدار `TELEGRAM_ADMIN_CHAT_ID` نادرست است یا هرگز به ربات پیام نداده‌اید | یک‌بار در تلگرام به ربات `/start` بدهید و شناسه عددی صحیح را در `.env` بگذارید |
 | `access to env vars denied` در Expression ها | n8n به‌صورت پیش‌فرض دسترسی به `$env` را می‌بندد | مقدار `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` را در `.env` بگذارید و کانتینر را ری‌استارت کنید، یا شناسه چت را مستقیماً عددی وارد کنید |
 | گره AI Agent خطای `No language model` می‌دهد | زیرگره مدل به ورودی Chat Model متصل نیست | خروجی گره `OpenAI Chat Model` را به ورودی **Chat Model** گره `AI Agent` وصل کنید |
@@ -264,7 +312,8 @@ Workflow به دو اعتبارنامه نیاز دارد. **کلیدها هرگ
 ├── README.md                  # همین فایل
 ├── docker-compose.yml         # راه‌اندازی n8n با Docker
 ├── workflow/
-│   └── telegram_ai_bot.json   # فایل Workflow قابل import در n8n
+│   ├── telegram_ai_bot.json           # Workflow نسخه Webhook (عملیاتی)
+│   └── telegram_ai_bot_polling.json   # Workflow نسخه Polling (توسعه محلی)
 └── docs/
     └── architecture.md        # توضیح معماری و اجزای Workflow
 ```
