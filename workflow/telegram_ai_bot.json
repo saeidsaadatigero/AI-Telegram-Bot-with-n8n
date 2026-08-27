@@ -1,0 +1,238 @@
+{
+  "name": "AI Telegram Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -220,
+        0
+      ],
+      "webhookId": "f0e1d2c3-1111-4111-8111-111111111111",
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram_bot",
+          "name": "telegram_bot"
+        }
+      },
+      "notes": "دریافت پیام متنی از کاربر در تلگرام.\n\nعملکرد: این گره یک Webhook روی سرورهای تلگرام ثبت می‌کند و به محض ارسال پیام توسط کاربر، Workflow را اجرا می‌کند.\n\nورودی: ندارد (این گره Trigger است و نقطه شروع Workflow محسوب می‌شود).\n\nخروجی: شیء JSON کامل آپدیت تلگرام. مهم‌ترین فیلدها:\n- متن پیام: {{ $json.message.text }}\n- شناسه چت: {{ $json.message.chat.id }}\n- نام کاربر: {{ $json.message.from.first_name }}\n\nنکات پیکربندی:\n۱) Credential با نام telegram_bot باید ساخته شود و توکن دریافتی از BotFather در آن قرار گیرد.\n۲) برای کارکرد Webhook در حالت محلی باید n8n از اینترنت قابل دسترس باشد؛ در حالت توسعه از دکمه «Test workflow» یا تونل استفاده کنید.\n۳) گزینه updates روی message تنظیم شده تا فقط پیام‌های عادی دریافت شوند.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "options": {
+          "systemMessage": "تو یک دستیار هوشمند فارسی‌زبان هستی. پاسخ‌های کوتاه و مفید بده."
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        60,
+        0
+      ],
+      "notes": "پردازش پیام با مدل زبانی OpenAI.\n\nعملکرد: متن پیام کاربر را به مدل زبانی می‌دهد و پاسخ تولیدشده را برمی‌گرداند.\n\nورودی: متن پیام کاربر از گره Telegram Trigger با عبارت {{ $json.message.text }}\n\nخروجی: فیلد output که شامل پاسخ متنی مدل است و در گره بعدی با {{ $json.output }} خوانده می‌شود.\n\nپرامپت سیستم: «تو یک دستیار هوشمند فارسی‌زبان هستی. پاسخ‌های کوتاه و مفید بده.»\n\nنکات پیکربندی:\n۱) مدل زبانی به صورت زیرگره (Sub-node) از طریق ورودی Chat Model متصل می‌شود.\n۲) در صورت نیاز می‌توانید Memory یا Tool به این گره اضافه کنید تا به یک Agent کامل تبدیل شود.\n۳) گزینه onError روی continueErrorOutput است تا خطاها به شاخه دوم هدایت شوند.",
+      "notesInFlow": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 512
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        220
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai_api",
+          "name": "openai_api"
+        }
+      },
+      "notes": "مدل زبانی OpenAI.\n\nعملکرد: تأمین‌کننده موتور هوش مصنوعی برای گره AI Agent.\n\nمدل انتخاب‌شده: gpt-4o-mini (سریع و کم‌هزینه). برای هزینه کمتر gpt-3.5-turbo و برای کیفیت بالاتر gpt-4o را انتخاب کنید.\n\nتنظیمات: temperature برابر ۰٫۷ برای تعادل میان خلاقیت و دقت، و maxTokens برابر ۵۱۲ برای کنترل طول پاسخ و هزینه.\n\nنکات پیکربندی: Credential با نام openai_api بسازید و مقدار OPENAI_API_KEY را در آن وارد کنید.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        420,
+        -100
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram_bot",
+          "name": "telegram_bot"
+        }
+      },
+      "notes": "ارسال پاسخ نهایی به کاربر.\n\nعملکرد: پاسخ تولیدشده توسط مدل را به همان چتی که پیام از آن آمده بازمی‌گرداند.\n\nورودی: {{ $json.output }} از گره AI Agent\n\nشناسه چت: {{ $('Telegram Trigger').item.json.message.chat.id }}\n\nنکات پیکربندی: گزینه appendAttribution غیرفعال شده تا عبارت تبلیغاتی n8n به انتهای پیام اضافه نشود.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "متأسفم، در پردازش پیام شما مشکلی پیش آمد. لطفاً چند لحظه بعد دوباره تلاش کنید.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Notify User On Failure",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        420,
+        100
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram_bot",
+          "name": "telegram_bot"
+        }
+      },
+      "notes": "اطلاع‌رسانی خطا به کاربر.\n\nعملکرد: اگر گره AI Agent با خطا مواجه شود (مثلاً اتمام اعتبار OpenAI یا قطعی شبکه)، به جای سکوت یک پیام مؤدبانه به کاربر ارسال می‌شود.\n\nورودی: خروجی خطای گره AI Agent (شاخه قرمز).\n\nنکات پیکربندی: این مسیر به خروجی دوم گره AI Agent متصل است.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        400
+      ],
+      "notes": "مدیریت خطا و اطلاع‌رسانی به ادمین.\n\nعملکرد: این گره یک Trigger مستقل است و زمانی اجرا می‌شود که Workflow با خطای مدیریت‌نشده متوقف شود.\n\nخروجی: شیء خطا شامل:\n- نام Workflow: {{ $json.workflow.name }}\n- پیام خطا: {{ $json.execution.error.message }}\n- گره خطادار: {{ $json.execution.lastNodeExecuted }}\n\nنکات پیکربندی: در تنظیمات Workflow بخش Settings → Error Workflow همین Workflow را انتخاب کنید.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_ADMIN_CHAT_ID }}",
+        "text": "=🚨 خطا در اجرای Workflow\n\nنام: {{ $json.workflow.name }}\nگره خطادار: {{ $json.execution.lastNodeExecuted }}\nپیام خطا: {{ $json.execution.error.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Alert Admin",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        60,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram_bot",
+          "name": "telegram_bot"
+        }
+      },
+      "notes": "ارسال گزارش خطا به ادمین.\n\nعملکرد: جزئیات خطا را به شناسه چت ادمین در تلگرام ارسال می‌کند.\n\nشناسه چت ادمین از متغیر محیطی خوانده می‌شود: {{ $env.TELEGRAM_ADMIN_CHAT_ID }}\n\nنکات پیکربندی:\n۱) مقدار TELEGRAM_ADMIN_CHAT_ID را در فایل .env تنظیم کنید.\n۲) برای اجازه خواندن متغیرهای محیطی در Expression ها، متغیر N8N_BLOCK_ENV_ACCESS_IN_NODE باید false باشد (در .env.example موجود است). در غیر این صورت شناسه چت را مستقیماً عددی وارد کنید.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify User On Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Alert Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Tehran",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "ai-telegram-bot-sample"
+  },
+  "tags": [
+    {
+      "name": "telegram"
+    },
+    {
+      "name": "openai"
+    }
+  ]
+}

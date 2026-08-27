@@ -1,0 +1,23 @@
+# راه‌اندازی n8n روی ویندوز با Docker Desktop / WSL2
+version: "3.8"
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-telegram-bot
+    restart: unless-stopped
+    ports:
+      # پورت پنل مدیریت n8n روی مرورگر: http://localhost:5678
+      - "5678:5678"
+    env_file:
+      # متغیرهای محیطی از فایل .env خوانده می‌شوند (این فایل commit نمی‌شود)
+      - .env
+    volumes:
+      # ذخیره‌سازی دائمی Workflow ها، Credential ها و پایگاه‌داده داخلی n8n
+      - n8n_data:/home/node/.n8n
+      # پوشه اشتراکی برای import کردن فایل Workflow از داخل کانتینر
+      - ./workflow:/home/node/workflow
+
+volumes:
+  n8n_data:
+    name: n8n_data

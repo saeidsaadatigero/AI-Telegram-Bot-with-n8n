@@ -1,0 +1,28 @@
+# متغیرهای محیطی (هرگز commit نشود)
+.env
+.env.local
+*.env.bak
+
+# پایتون
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ادیتورها
+.idea/
+.vscode/
+*.swp
+
+# نود
+node_modules/
+
+# فایل‌های موقت و سیستمی
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# داده‌های محلی n8n
+n8n_data/
