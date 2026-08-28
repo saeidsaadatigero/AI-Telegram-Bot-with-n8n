@@ -1,4 +1,5 @@
 # ربات تلگرام هوشمند با n8n و OpenAI
+<img width="1915" height="906" alt="image" src="https://github.com/user-attachments/assets/0d048d5b-542a-433b-b242-ae895b44bf5b" />
 
 یک نمونه عملی و کامل از ساخت **AI Agent** با پلتفرم اتوماسیون **n8n**؛ رباتی که پیام‌های کاربران در تلگرام را دریافت می‌کند، آن‌ها را با مدل زبانی OpenAI پردازش می‌کند و پاسخ فارسی و کوتاه بازمی‌گرداند — بدون نوشتن حتی یک خط کد سمت سرور.
 
@@ -63,6 +64,7 @@
 جزئیات بیشتر معماری در فایل [`docs/architecture.md`](docs/architecture.md) آمده است.
 
 ---
+<img width="1240" height="954" alt="image" src="https://github.com/user-attachments/assets/35d05009-f7aa-40f0-b841-fb803edc5f3f" />
 
 ## پیش‌نیازها
 
