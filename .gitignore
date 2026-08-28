@@ -29,3 +29,7 @@ n8n_data/
 
 # فایل موقت import
 workflow/_import_tmp.json
+
+# فایل‌های موقت ساخت مستندات
+docs/_*.html
+docs/_*.txt
